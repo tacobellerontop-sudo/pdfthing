@@ -29,18 +29,17 @@ fn harness(setup: impl FnOnce(&mut PrintCraftApp) + 'static) -> Harness<'static,
 }
 
 #[test]
-fn home_shows_welcome_and_tools() {
+fn home_shows_the_two_ways_in_and_tools() {
     let h = harness(|_| {});
-    h.get_by_label_contains("Welcome to PrintCraft");
-    assert!(h.query_all_by_label("Organize pages").count() >= 2, "tool list + home card");
-    h.get_by_label("Open file");
+    h.get_by_label("Blank Page");
+    h.get_by_label("Edit a PDF");
+    h.get_by_label("More tools");
+    h.get_by_label("Organize pages");
 }
 
 #[test]
-fn every_catalog_tool_is_listed_after_view_more() {
-    let mut h = harness(|_| {});
-    h.get_by_label("View more").click();
-    h.run_steps(3);
+fn every_catalog_tool_is_listed_on_home() {
+    let h = harness(|_| {});
     for g in printcraft_engine::catalog::TOOL_GROUPS {
         assert!(h.query_all_by_label(g.label).count() >= 1, "tool {} missing from All tools", g.label);
     }

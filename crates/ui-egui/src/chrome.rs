@@ -1,17 +1,22 @@
-//! Window chrome: tab strip (with the integrated macOS title bar), mode bar, right rail.
+//! Window chrome: the app-drawn title bar (brand, tabs, actions, window controls) and the right rail.
 
 use egui::{Align, Align2, Color32, CornerRadius, Layout, Rect, Sense, Stroke, vec2};
 
 use crate::canvas::{Fit, PageLayout};
 use crate::theme::{self, ThemeKind, Tokens};
-use crate::{Dialog, Mode, PrintCraftApp, PropsTab, RightPanel, icons, widgets};
+use crate::{PrintCraftApp, RightPanel, icons, widgets};
 
-pub fn tab_strip(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
+/// The app's own title bar, in place of the system one: brand, document tabs, a few actions, and
+/// (where the app draws its own window frame) minimise, maximise and close. Drag it to move the
+/// window; double-click it to maximise.
+pub fn title_bar(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
-    let left = if cfg!(target_os = "macos") && app.integrated_titlebar { 80 } else { 8 };
-    egui::Panel::top("tab_strip")
-        .exact_size(38.0)
-        .frame(egui::Frame::NONE.fill(t.titlebar).inner_margin(egui::Margin { left, right: 10, top: 0, bottom: 0 }))
+    let left = if cfg!(target_os = "macos") && app.integrated_titlebar { 80 } else { 10 };
+    egui::Panel::top("title_bar")
+        .exact_size(46.0)
+        .frame(
+            egui::Frame::NONE.fill(t.titlebar).inner_margin(egui::Margin { left, right: 0, top: 0, bottom: 0 }).stroke(Stroke::new(1.0, t.divider)),
+        )
         .show(ui, |ui| {
             let full = ui.max_rect();
             let drag = ui.interact(full, ui.id().with("titledrag"), Sense::click_and_drag());
@@ -19,14 +24,14 @@ pub fn tab_strip(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
             }
             if drag.double_clicked() {
-                let max = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
+                toggle_maximized(ui.ctx());
             }
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                if icons::button(ui, "house", 28.0, app.active.is_none(), "Home").clicked() {
+                if brand(ui, &t, app.active.is_none()).clicked() {
                     app.active = None;
                 }
+                ui.add_space(6.0);
                 let mut close = None;
                 for i in 0..app.views.len() {
                     let Some(doc) = app.session.get(app.views[i].id) else { continue };
@@ -38,29 +43,120 @@ pub fn tab_strip(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
                 if let Some(i) = close {
                     app.request_close_tab(i);
                 }
-                ui.add_space(4.0);
-                if widgets::ghost_button(ui, "plus", "Open").on_hover_text("Open a PDF (⌘O)").clicked() {
+                if icons::button(ui, "plus", 28.0, false, "Open a PDF (⌘O)").clicked() {
                     app.open_dialog();
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    if app.custom_window_controls {
+                        window_controls(ui, &t);
+                        ui.add_space(6.0);
+                    } else {
+                        ui.add_space(8.0);
+                    }
                     let (icon, next, tip) = match app.theme {
-                        ThemeKind::Light => ("moon", ThemeKind::Dark, "Dark gray theme"),
+                        ThemeKind::Light => ("moon", ThemeKind::Dark, "Dark theme"),
                         ThemeKind::Dark => ("sun", ThemeKind::Light, "Light theme"),
                     };
-                    if icons::button(ui, icon, 28.0, false, tip).clicked() {
+                    if icons::button(ui, icon, 32.0, false, tip).clicked() {
                         let ctx = ui.ctx().clone();
                         app.set_theme(&ctx, next);
                     }
-                    if icons::button(ui, "circle-help", 28.0, false, "Keyboard shortcuts").clicked() {
-                        app.dialog = Some(Dialog::Shortcuts);
+                    main_menu(app, ui);
+                    if app.active.is_some() {
+                        if icons::button(ui, "printer", 32.0, false, "Print (⌘P)").clicked() {
+                            app.run_command("print.dialog");
+                        }
+                        if icons::button(ui, "save", 32.0, false, "Save (⌘S)").clicked() {
+                            app.run_command("file.save");
+                        }
+                        let open = app.left_open;
+                        if icons::button(ui, "layout-grid", 32.0, open, "Tools").clicked() {
+                            app.left_open = !open;
+                            app.left = crate::LeftPanel::AllTools;
+                        }
                     }
-                    // One click to the community, from anywhere in the app.
-                    if widgets::ghost_button(ui, "messages-square", "Discord").on_hover_text(printcraft_engine::links::DISCORD).clicked() {
-                        app.execute("help.discord");
+                    if icons::button(ui, "search", 32.0, false, "Find a tool or command (⌘K)").clicked() {
+                        app.palette_open = true;
                     }
                 });
             });
         });
+}
+
+/// The PDFThing mark and name; goes home.
+fn brand(ui: &mut egui::Ui, t: &Tokens, home: bool) -> egui::Response {
+    let font = theme::semibold(14.5);
+    let w = ui.fonts_mut(|f| f.layout_no_wrap("PDFThing".to_owned(), font.clone(), t.text).size().x);
+    let (rect, resp) = ui.allocate_exact_size(vec2(w + 44.0, 34.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, home, "Home"));
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, CornerRadius::same(10), t.hover);
+    }
+    let mark = Rect::from_min_size(rect.min + vec2(6.0, 5.0), vec2(24.0, 24.0));
+    ui.painter().rect_filled(mark, CornerRadius::same(7), t.accent);
+    icons::paint(ui, mark, "pencil", 14.0, Color32::WHITE);
+    ui.painter().text(rect.left_center() + vec2(36.0, 0.0), Align2::LEFT_CENTER, "PDFThing", font, t.text);
+    resp.on_hover_text("Home")
+}
+
+fn toggle_maximized(ctx: &egui::Context) {
+    let max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
+}
+
+/// Minimise, maximise / restore and close, drawn by the app (right to left).
+fn window_controls(ui: &mut egui::Ui, t: &Tokens) {
+    let ctx = ui.ctx().clone();
+    let control = |ui: &mut egui::Ui, icon: &str, tip: &str, danger: bool| {
+        let (rect, resp) = ui.allocate_exact_size(vec2(46.0, 46.0), Sense::click());
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tip));
+        let hover = resp.hovered();
+        if hover {
+            ui.painter().rect_filled(rect, CornerRadius::ZERO, if danger { Color32::from_rgb(0xE8, 0x3B, 0x3B) } else { t.hover });
+        }
+        icons::paint(ui, rect, icon, 15.0, if hover && danger { Color32::WHITE } else { t.icon });
+        resp.on_hover_text(tip).clicked()
+    };
+    if control(ui, "x", "Close", true) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+    let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+    if control(ui, if maximized { "copy" } else { "square" }, if maximized { "Restore" } else { "Maximise" }, false) {
+        toggle_maximized(&ctx);
+    }
+    if control(ui, "minus", "Minimise", false) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+    }
+}
+
+/// Without the system frame, the window edges resize it: show the resize cursor near an edge and
+/// start a resize when one is dragged.
+pub fn resize_edges(ctx: &egui::Context) {
+    use egui::{CursorIcon, ResizeDirection as D};
+    const GRIP: f32 = 5.0;
+    if ctx.input(|i| i.viewport().maximized.unwrap_or(false) || i.viewport().fullscreen.unwrap_or(false)) {
+        return;
+    }
+    let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) else { return };
+    let r = ctx.content_rect();
+    let (w, e, n, s) = (pos.x - r.left() < GRIP, r.right() - pos.x < GRIP, pos.y - r.top() < GRIP, r.bottom() - pos.y < GRIP);
+    let dir = match (w, e, n, s) {
+        (true, _, true, _) => Some((D::NorthWest, CursorIcon::ResizeNorthWest)),
+        (_, true, true, _) => Some((D::NorthEast, CursorIcon::ResizeNorthEast)),
+        (true, _, _, true) => Some((D::SouthWest, CursorIcon::ResizeSouthWest)),
+        (_, true, _, true) => Some((D::SouthEast, CursorIcon::ResizeSouthEast)),
+        (true, ..) => Some((D::West, CursorIcon::ResizeWest)),
+        (_, true, ..) => Some((D::East, CursorIcon::ResizeEast)),
+        (_, _, true, _) => Some((D::North, CursorIcon::ResizeNorth)),
+        (.., true) => Some((D::South, CursorIcon::ResizeSouth)),
+        _ => None,
+    };
+    let Some((dir, cursor)) = dir else { return };
+    ctx.set_cursor_icon(cursor);
+    if ctx.input(|i| i.pointer.primary_pressed()) {
+        ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(dir));
+    }
 }
 
 fn tab(ui: &mut egui::Ui, t: &Tokens, name: &str, dirty: bool, active: bool, close: &mut Option<usize>, index: usize) -> egui::Response {
@@ -103,58 +199,9 @@ fn tab(ui: &mut egui::Ui, t: &Tokens, name: &str, dirty: bool, active: bool, clo
     resp.on_hover_text(if dirty { format!("{name} — unsaved changes") } else { name.to_string() })
 }
 
-pub fn mode_bar(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
-    let t = Tokens::get(ui.ctx());
-    egui::Panel::top("mode_bar")
-        .exact_size(48.0)
-        .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(10, 0)).stroke(Stroke::new(1.0, t.divider)))
-        .show(ui, |ui| {
-            ui.horizontal_centered(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                main_menu(app, ui);
-                ui.add_space(6.0);
-                ui.painter().vline(ui.cursor().left(), ui.max_rect().y_range().shrink(12.0), Stroke::new(1.0, t.divider));
-                ui.add_space(10.0);
-                for (mode, label) in
-                    [(Mode::AllTools, "All tools"), (Mode::Read, "Read"), (Mode::Edit, "Edit"), (Mode::Convert, "Convert"), (Mode::Sign, "E-Sign")]
-                {
-                    if widgets::mode_tab(ui, label, app.mode == mode).clicked() {
-                        app.mode = mode;
-                        app.left_open = true;
-                        app.left = match mode {
-                            Mode::Edit => crate::LeftPanel::Tool("edit"),
-                            Mode::Convert => crate::LeftPanel::Tool("export"),
-                            Mode::Sign => crate::LeftPanel::Tool("fill_sign"),
-                            _ => crate::LeftPanel::AllTools,
-                        };
-                    }
-                }
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 4.0;
-                    let has_doc = app.active.is_some();
-                    ui.add_enabled_ui(has_doc, |ui| {
-                        if icons::button(ui, "printer", 32.0, false, "Print (⌘P)").clicked() {
-                            app.run_command("print.dialog");
-                        }
-                        if icons::button(ui, "save", 32.0, false, "Save (M4)").clicked() {
-                            app.run_command("file.save");
-                        }
-                        if icons::button(ui, "info", 32.0, false, "Document properties (⌘D)").clicked() {
-                            app.dialog = Some(Dialog::Properties(PropsTab::Description));
-                        }
-                    });
-                    ui.add_space(8.0);
-                    if widgets::search_box(ui, "Find tools and commands", 260.0).clicked() {
-                        app.palette_open = true;
-                    }
-                });
-            });
-        });
-}
-
 fn main_menu(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
-    let resp = widgets::ghost_button(ui, "panel-left", "Menu");
+    let resp = widgets::ghost_button(ui, "ellipsis", "Menu");
     egui::Popup::menu(&resp).show(|ui| {
         ui.set_min_width(230.0);
         ui.menu_button("File", |ui| crate::commands::registry_menu(app, ui, "File"));
@@ -269,6 +316,7 @@ pub fn right_rail(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
         !doc.info.attachments.is_empty(),
     );
     let page_count = doc.info.pages.len();
+    let open_panel = app.right;
     let labels: Vec<String> = doc.info.pages.iter().map(|p| p.label.clone()).collect();
     egui::Panel::right("rail")
         .resizable(false)
@@ -290,10 +338,17 @@ pub fn right_rail(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
             rail_button(ui, RightPanel::Comments, "message-square-text", "Comments", has_comments);
             rail_button(ui, RightPanel::Bookmarks, "bookmark", "Bookmarks", has_outline);
             rail_button(ui, RightPanel::Pages, "files", "Page thumbnails", false);
-            rail_button(ui, RightPanel::Fields, "text-cursor-input", "Form fields", has_fields);
-            rail_button(ui, RightPanel::Layers, "layers", "Layers", has_layers);
-            rail_button(ui, RightPanel::Attachments, "paperclip", "Attachments", has_files);
-            rail_button(ui, RightPanel::Signatures, "signature", "Signatures", has_signatures);
+            // The rest only when the document has something to show (or the panel is open).
+            for (panel, icon, tip, has) in [
+                (RightPanel::Fields, "text-cursor-input", "Form fields", has_fields),
+                (RightPanel::Layers, "layers", "Layers", has_layers),
+                (RightPanel::Attachments, "paperclip", "Attachments", has_files),
+                (RightPanel::Signatures, "signature", "Signatures", has_signatures),
+            ] {
+                if has || open_panel == Some(panel) {
+                    rail_button(ui, panel, icon, tip, has);
+                }
+            }
             if has_check {
                 rail_button(ui, RightPanel::Accessibility, "accessibility", "Accessibility Checker", false);
             }

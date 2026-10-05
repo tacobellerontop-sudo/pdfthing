@@ -36,6 +36,8 @@ fn harness() -> Harness<'static, PrintCraftApp> {
         let mut app = PrintCraftApp::new();
         app.open_bytes("a.pdf", None, fixture(5)).unwrap();
         app.open_bytes("b.pdf", None, fixture(2)).unwrap();
+        // The geometry below assumes the tools panel takes its share of the width.
+        app.left_open = true;
         app
     });
     for _ in 0..40 {
@@ -285,7 +287,7 @@ fn tab_and_window_show_the_document_title_when_asked() {
     use printcraft_engine::Edit;
     let mut h = harness();
     h.run_steps(2);
-    assert_eq!(h.state().window_title, "b.pdf — PrintCraft");
+    assert_eq!(h.state().window_title, "b.pdf — PDFThing");
     {
         let s = h.state_mut();
         let id = s.views[s.active.unwrap()].id;
@@ -295,7 +297,7 @@ fn tab_and_window_show_the_document_title_when_asked() {
         s.session.apply(id, Edit::SetInitialView(Box::new(v))).unwrap();
     }
     h.run_steps(2);
-    assert_eq!(h.state().window_title, "Quarterly report — PrintCraft");
+    assert_eq!(h.state().window_title, "Quarterly report — PDFThing");
     h.get_by_label_contains("Quarterly report");
 }
 

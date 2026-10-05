@@ -287,6 +287,9 @@ pub struct PrintCraftApp {
     pub toast: Option<(String, f64)>,
     /// Whether the macOS title bar is drawn by us (traffic lights over our tab strip).
     pub integrated_titlebar: bool,
+    /// The app draws its own minimise / maximise / close buttons and resize edges (the system
+    /// window frame is off).
+    pub custom_window_controls: bool,
     pub password_prompt: Option<PasswordPrompt>,
     pub full_screen: bool,
     /// Files delivered asynchronously (web drag-and-drop, web file picker).
@@ -442,7 +445,7 @@ impl PrintCraftApp {
             active: None,
             mode: Mode::AllTools,
             left: LeftPanel::AllTools,
-            left_open: true,
+            left_open: false,
             right: None,
             quick_tool: QuickTool::Select,
             comment_prefs: Default::default(),
@@ -455,6 +458,7 @@ impl PrintCraftApp {
             recent: Vec::new(),
             toast: None,
             integrated_titlebar: false,
+            custom_window_controls: false,
             password_prompt: None,
             full_screen: false,
             inbox: Default::default(),
@@ -777,6 +781,18 @@ impl PrintCraftApp {
             ctx.open_url(egui::OpenUrl::new_tab(url));
         }
         self.last_opened_url = Some(url.to_string());
+    }
+
+    /// Open a URL a document asked for (a link, a button's URI action, `app.launchURL`), if it is
+    /// a web or email link. Anything else could open local files or start other programs, so it
+    /// is refused with a notice (see [`printcraft_engine::links::is_safe_document_url`]).
+    pub fn open_document_url(&mut self, url: &str) {
+        if printcraft_engine::links::is_safe_document_url(url) {
+            self.open_url(url);
+        } else {
+            let shown: String = url.chars().filter(|c| !c.is_control()).take(80).collect();
+            self.notify(format!("Blocked a link to \"{shown}\": only web and email links open from documents"));
+        }
     }
 
     pub fn notify(&mut self, msg: impl Into<String>) {
@@ -1148,7 +1164,7 @@ impl eframe::App for PrintCraftApp {
         let title = self
             .active
             .and_then(|i| self.session.get(self.views[i].id))
-            .map_or_else(|| "PrintCraft".to_owned(), |d| format!("{} — PrintCraft", d.display_name()));
+            .map_or_else(|| "PDFThing".to_owned(), |d| format!("{} — PDFThing", d.display_name()));
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.window_title = title;
@@ -1167,15 +1183,17 @@ impl eframe::App for PrintCraftApp {
             dialogs::show(self, &ctx);
             return;
         }
-        chrome::tab_strip(self, ui);
-        chrome::mode_bar(self, ui);
+        if self.custom_window_controls {
+            chrome::resize_edges(&ctx);
+        }
+        chrome::title_bar(self, ui);
         if self.active.is_some() {
             chrome::right_rail(self, ui);
             if self.right.is_some() && self.mode != Mode::Read {
                 panels::right_panel(self, ui);
             }
         }
-        if self.left_open && self.mode != Mode::Read {
+        if self.left_open && self.active.is_some() && self.mode != Mode::Read {
             panels::left_panel(self, ui);
         }
         let t = theme::Tokens::get(&ctx);

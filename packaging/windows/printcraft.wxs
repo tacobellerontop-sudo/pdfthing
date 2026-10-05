@@ -1,59 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  PrintCraft MSI (WiX Toolset v5: `dotnet tool install -g wix`). Built by package.ps1:
+  PDFThing MSI (WiX Toolset v5: `dotnet tool install -g wix`). Built by package.ps1:
 
     wix build printcraft.wxs -arch x64 -d Version=1.2.3 -d BinDir=... -d IconPath=... -o out.msi
 
-  Per-machine install into Program Files, a Start Menu shortcut, `.pcraft` owned by PrintCraft,
-  and PrintCraft offered under "Open with" for PSD/PSB and the image formats it reads (without
-  taking over the user's default app for them).
+  Per-machine install into Program Files with a Start Menu shortcut. Cargo builds printcraft.exe;
+  it is installed as PDFThing.exe.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
-      Name="PrintCraft"
-      Manufacturer="Learning Machines LLC"
+      Name="PDFThing"
+      Manufacturer="PDFThing contributors"
       Version="$(var.Version)"
-      UpgradeCode="EA00C367-7270-4C50-9D8B-A7A5C88AD27F"
+      UpgradeCode="14D146EF-BA0D-4279-857F-1C55896498AB"
       Scope="perMachine"
       Compressed="yes"
       Language="1033">
-    <SummaryInformation Description="PrintCraft image editor" Manufacturer="Learning Machines LLC" />
+    <SummaryInformation Description="PDFThing: draw, sketch and mark up PDFs" Manufacturer="PDFThing contributors" />
     <!-- Same-version upgrades let successive pre-releases of one X.Y.Z replace each other
          (MSI versions are numeric, so 1.2.3-rc.1 and 1.2.3-rc.2 are both 1.2.3). -->
     <MajorUpgrade AllowSameVersionUpgrades="yes"
-        DowngradeErrorMessage="A newer version of PrintCraft is already installed." />
+        DowngradeErrorMessage="A newer version of PDFThing is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <Icon Id="PrintcraftIcon" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="PrintcraftIcon" />
-    <Property Id="ARPURLINFOABOUT" Value="https://getartcraft.com/apps/printcraft" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://getartcraft.com/apps/printcraft" />
-    <Property Id="ARPHELPLINK" Value="https://discord.gg/artcraft" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
-      <Directory Id="INSTALLFOLDER" Name="PrintCraft" />
+      <Directory Id="INSTALLFOLDER" Name="PDFThing" />
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder" />
 
-    <Feature Id="Main" Title="PrintCraft" Level="1">
+    <Feature Id="Main" Title="PDFThing" Level="1">
       <ComponentGroupRef Id="PrintcraftFiles" />
     </Feature>
   </Package>
 
   <Fragment>
     <ComponentGroup Id="PrintcraftFiles" Directory="INSTALLFOLDER">
-      <Component Id="PrintcraftApp" Guid="E724C1C6-091F-4E21-A685-80D089FDBE21">
-        <File Id="PrintcraftExe" Source="$(var.BinDir)\printcraft.exe" KeyPath="yes">
-          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="PrintCraft"
-              Description="PrintCraft image editor" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
+      <Component Id="PrintcraftApp" Guid="66A9B545-EDE4-4585-87FD-970F4D595B00">
+        <File Id="PrintcraftExe" Name="PDFThing.exe" Source="$(var.BinDir)\printcraft.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="PDFThing"
+              Description="Draw, sketch and mark up PDFs" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
               Icon="PrintcraftIcon" IconIndex="0" />
         </File>
 
-        <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\printcraft.exe" Value="[#PrintcraftExe]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\PDFThing.exe" Value="[#PrintcraftExe]" Type="string" />
       </Component>
 
       <Component Id="PrintcraftCli">
-        <File Id="PrintcraftCliExe" Source="$(var.BinDir)\printcraft-cli.exe" KeyPath="yes" />
+        <File Id="PrintcraftCliExe" Name="pdfthing-cli.exe" Source="$(var.BinDir)\printcraft-cli.exe" KeyPath="yes" />
       </Component>
     </ComponentGroup>
   </Fragment>

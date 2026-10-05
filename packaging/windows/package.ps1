@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-  Build, sign and package PrintCraft for Windows.
+  Build, sign and package PDFThing for Windows.
 
 .DESCRIPTION
   Produces, in $env:DIST (default: dist/release):
-    printcraft-<version>-windows-<arch>.msi            per-machine installer (WiX v5)
-    printcraft-<version>-windows-<arch>-portable.zip   printcraft.exe + printcraft-cli.exe
+    pdfthing-<version>-windows-<arch>.msi            per-machine installer (WiX v5)
+    pdfthing-<version>-windows-<arch>-portable.zip   PDFThing.exe + pdfthing-cli.exe
 
   The binaries link the C runtime statically (+crt-static), so neither the MSI nor the portable
   zip needs the Visual C++ redistributable. Signing is delegated to sign.ps1 (skipped with a
@@ -52,7 +52,7 @@ New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 if (-not $env:PRINTCRAFT_BUILD_SHA) { $env:PRINTCRAFT_BUILD_SHA = (git -C $Root rev-parse HEAD 2>$null) }
 if (-not $env:PRINTCRAFT_BUILD_DATE) { $env:PRINTCRAFT_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd') }
 
-Write-Output "PrintCraft $Version for Windows $Arch ($Target)"
+Write-Output "PDFThing $Version for Windows $Arch ($Target)"
 
 if (-not $SkipBuild) {
   # Static CRT: no VC++ redistributable needed. Scoped to the target so host build scripts and
@@ -73,7 +73,7 @@ Copy-Item (Join-Path $Bin 'printcraft.exe'), (Join-Path $Bin 'printcraft-cli.exe
 & (Join-Path $PSScriptRoot 'sign.ps1') (Join-Path $Stage 'printcraft.exe') (Join-Path $Stage 'printcraft-cli.exe')
 
 # ---- MSI ---------------------------------------------------------------------------------------
-$Msi = Join-Path $Dist "printcraft-$Version-windows-$Arch.msi"
+$Msi = Join-Path $Dist "pdfthing-$Version-windows-$Arch.msi"
 Invoke-Native 'wix build' {
   wix build (Join-Path $PSScriptRoot 'printcraft.wxs') -arch $Arch `
     -d "Version=$MsiVersion" -d "BinDir=$Stage" -d "IconPath=$(Join-Path $Root 'assets\app-icon\printcraft.ico')" `
@@ -84,15 +84,16 @@ Remove-Item -Force -ErrorAction SilentlyContinue ([IO.Path]::ChangeExtension($Ms
 & (Join-Path $PSScriptRoot 'sign.ps1') $Msi
 
 # ---- portable zip ------------------------------------------------------------------------------
-$Portable = Join-Path $TargetDir "windows-package\printcraft-$Version-windows-$Arch-portable"
+$Portable = Join-Path $TargetDir "windows-package\pdfthing-$Version-windows-$Arch-portable"
 Remove-Item -Recurse -Force $Portable -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Portable | Out-Null
-Copy-Item (Join-Path $Stage '*.exe') $Portable
+Copy-Item (Join-Path $Stage 'printcraft.exe') (Join-Path $Portable 'PDFThing.exe')
+Copy-Item (Join-Path $Stage 'printcraft-cli.exe') (Join-Path $Portable 'pdfthing-cli.exe')
 foreach ($f in 'README.md', 'LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE') {
   $p = Join-Path $Root $f
   if (Test-Path $p) { Copy-Item $p $Portable }
 }
-$Zip = Join-Path $Dist "printcraft-$Version-windows-$Arch-portable.zip"
+$Zip = Join-Path $Dist "pdfthing-$Version-windows-$Arch-portable.zip"
 Remove-Item -Force $Zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $Portable -DestinationPath $Zip
 

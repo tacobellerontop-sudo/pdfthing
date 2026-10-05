@@ -833,7 +833,8 @@ pub fn shortcuts(view: &mut DocView, ctx: &egui::Context) {
     if pressed(cmd(Key::G)) {
         view.find_step(true);
     }
-    if pressed(cmd(Key::A)) {
+    // With a comment selected, ⌘A selects every comment on its page instead (comments::keys).
+    if view.comments.selected.is_none() && pressed(cmd(Key::A)) {
         view.select_all();
     }
     if pressed(cmd(Key::OpenBracket)) {
@@ -894,7 +895,9 @@ pub fn document_area(app: &mut PrintCraftApp, index: usize, ui: &mut egui::Ui) {
     // The Prepare a form panel is open (or a field tool is picked): fields are edited, not filled.
     let preparing = app.is_preparing();
     // Edit a PDF: added text and images can be selected, moved and edited.
-    let editing_content = (app.left_open && app.left == crate::LeftPanel::Tool("edit")) || app.quick_tool == QuickTool::AddText;
+    // The Select tool also picks, moves and (on double-click) edits added text and images.
+    let editing_content =
+        (app.left_open && app.left == crate::LeftPanel::Tool("edit")) || matches!(app.quick_tool, QuickTool::AddText | QuickTool::Select);
     let text_style = app.text_style.clone();
     let view = &mut app.views[index];
     // Opened without the owner password and something is restricted.
@@ -1230,6 +1233,10 @@ pub fn document_area(app: &mut PrintCraftApp, index: usize, ui: &mut egui::Ui) {
             let on_content = editing_content && can_modify && {
                 let o = crate::content_ui::page_input(ui, &resp, &xf, i, info, &added, tool == QuickTool::AddText, &text_style, view);
                 content_done |= o.done;
+                // Picking added text or an image deselects comments (one kind of selection at a time).
+                if o.consumed && view.content.selected.is_some() && (resp.clicked() || resp.drag_started()) {
+                    view.comments.selected = None;
+                }
                 o.consumed || tool == QuickTool::AddText
             };
             let on_edit_text = tool == QuickTool::EditText && can_modify && {
@@ -1544,7 +1551,7 @@ pub fn document_area(app: &mut PrintCraftApp, index: usize, ui: &mut egui::Ui) {
     // One crop, then back to selecting (as Acrobat does).
     let cropped = view.pending_edit.as_ref().is_some_and(|e| matches!(e, printcraft_engine::Edit::SetPageBox { .. }));
     let mut tool = app.quick_tool;
-    comments::keys(ui.ctx(), view, &mut tool, allowed);
+    comments::keys(ui.ctx(), view, info, &mut tool, allowed);
     if preparing {
         crate::prepare::keys(ui.ctx(), view);
     }
@@ -1579,7 +1586,7 @@ pub fn document_area(app: &mut PrintCraftApp, index: usize, ui: &mut egui::Ui) {
     }
     match clicked_link {
         Some(LinkTarget::Page(p)) => view.go_to_page(p),
-        Some(LinkTarget::Uri(u)) => ui.ctx().open_url(egui::OpenUrl::new_tab(u)),
+        Some(LinkTarget::Uri(u)) => app.open_document_url(&u),
         Some(LinkTarget::Other(s)) => app.notify(format!("{s} actions run in the JavaScript engine (M6)")),
         None => {}
     }
@@ -1666,13 +1673,13 @@ pub fn document_area(app: &mut PrintCraftApp, index: usize, ui: &mut egui::Ui) {
         app.notify(n);
     }
     if let Some((name, action)) = app.views[index].forms.button.take() {
-        run_button(app, index, ui.ctx(), &name, action);
+        run_button(app, index, &name, action);
     }
     quick_bar(app, avail, ui);
 }
 
 /// Run a push button's action (the ones that need no JavaScript engine).
-fn run_button(app: &mut PrintCraftApp, index: usize, ctx: &egui::Context, name: &str, action: printcraft_engine::form_scripts::ButtonAction) {
+fn run_button(app: &mut PrintCraftApp, index: usize, name: &str, action: printcraft_engine::form_scripts::ButtonAction) {
     use printcraft_engine::form_scripts::ButtonAction as B;
     let pages = app.session.get(app.views[index].id).map_or(0, |d| d.info.pages.len());
     let current = app.views[index].current;
@@ -1696,11 +1703,11 @@ fn run_button(app: &mut PrintCraftApp, index: usize, ctx: &egui::Context, name: 
             "LastPage" => app.views[index].go_to_page(pages.saturating_sub(1)),
             other => app.notify(format!("{name}: the {other} action isn't supported yet")),
         },
-        B::Uri(u) => ctx.open_url(egui::OpenUrl::new_tab(u)),
+        B::Uri(u) => app.open_document_url(&u),
         B::GoTo(p) => app.views[index].go_to_page(p.min(pages.saturating_sub(1))),
         B::Alert(m) => app.notify(m),
         B::Submit(url) => {
-            app.notify(format!("{name} submits the form to {url}; PrintCraft doesn't send form data. Save the document to keep your entries."))
+            app.notify(format!("{name} submits the form to {url}; PDFThing doesn't send form data. Save the document to keep your entries."))
         }
         B::ImportIcon => app.choose_field_image(name),
         B::Script(js) => {
@@ -1897,6 +1904,23 @@ fn quick_bar(app: &mut PrintCraftApp, area: Rect, ui: &mut egui::Ui) {
                     }
                     if icons::button(ui, "hand", 32.0, app.quick_tool == QuickTool::Hand, "Hand (H)").clicked() {
                         app.quick_tool = QuickTool::Hand;
+                    }
+                    // Drawing comes first: the pen and the eraser are always one click away.
+                    let pen = comments::CommentTool::Ink;
+                    if icons::button(ui, "pencil", 32.0, app.quick_tool == QuickTool::Comment(pen), "Pen (P)").clicked() {
+                        app.pick_up_pen();
+                    }
+                    let eraser = comments::CommentTool::Eraser;
+                    if icons::button(ui, "eraser", 32.0, app.quick_tool == QuickTool::Comment(eraser), "Eraser (E)").clicked() {
+                        app.execute(eraser.command());
+                    }
+                    // A fresh sheet to draw on, right after the page being looked at.
+                    if icons::button(ui, "file-plus", 32.0, false, "Add a blank page").clicked()
+                        && app.execute("page.insert_blank")
+                        && let Some(v) = app.active.and_then(|i| app.views.get_mut(i))
+                    {
+                        // Show the new page (now the current one), ready to draw on.
+                        v.goto = Some((v.current, 0.0));
                     }
                     // Comment ▸, Highlight ▸, Draw ▸ (Acrobat's comment toolbar groups). Clicking a
                     // group selects its last-used tool; clicking it again opens the flyout.

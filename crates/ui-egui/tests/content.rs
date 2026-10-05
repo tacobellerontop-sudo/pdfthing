@@ -7,7 +7,11 @@ use egui_kittest::kittest::Queryable;
 use printcraft_ui_egui::{PrintCraftApp, QuickTool};
 
 fn harness() -> Harness<'static, PrintCraftApp> {
-    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
+    harness_with(Harness::builder())
+}
+
+fn harness_with(builder: egui_kittest::HarnessBuilder<PrintCraftApp>) -> Harness<'static, PrintCraftApp> {
+    let mut h = builder.with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PrintCraftApp::new();
         app.open_bytes("form.pdf", None, include_bytes!("data/form.pdf").to_vec()).unwrap();
         app.set_option("zoom", "150").unwrap();
@@ -55,7 +59,7 @@ fn typing_moving_styling_and_deleting_added_content() {
     h.event(egui::Event::Text("Reviewed".into()));
     h.run_steps(2);
     // Click elsewhere on the page commits and goes back to Select.
-    let p = at(&h, 250.0, 380.0);
+    let p = at(&h, 250.0, 60.0);
     click(&mut h, p);
     let a = added(&h);
     assert_eq!(a.len(), 1);
@@ -102,4 +106,40 @@ fn typing_moving_styling_and_deleting_added_content() {
     h.run_steps(3);
     let printcraft_engine::AddedContent::Image(img) = &added(&h)[0].content else { panic!() };
     assert!(img.flip_h);
+}
+
+#[test]
+fn added_text_is_edited_by_double_clicking_it_with_the_select_tool() {
+    // 60 fps steps, so two clicks fall inside egui's double-click window.
+    let mut h = harness_with(Harness::builder().with_step_dt(1.0 / 60.0));
+    h.state_mut().set_option("left", "closed").unwrap();
+    h.state_mut().set_option("quick", "add-text").unwrap();
+    h.run_steps(2);
+    let p = at(&h, 40.0, 300.0);
+    click(&mut h, p);
+    h.event(egui::Event::Text("Draft".into()));
+    h.run_steps(2);
+    let away = at(&h, 250.0, 60.0);
+    click(&mut h, away);
+    assert_eq!(added(&h).len(), 1);
+    assert_eq!(h.state().quick_tool, QuickTool::Select);
+    assert!(h.state().views[0].content.draft.is_none());
+    // No editing panel is open: a double-click on the text with the Select tool edits it.
+    let r = added(&h)[0].content.rect();
+    // `rect` is in PDF user space (y up); `at` measures from the top.
+    let s = h.state().views[0].page_screen_rect(0).unwrap();
+    let page_h = s.height() / (s.width() / 300.0);
+    let mid = at(&h, ((r[0] + r[2]) / 2.0) as f32, page_h - ((r[1] + r[3]) / 2.0) as f32);
+    h.hover_at(mid);
+    // Let the earlier clicks age out, or egui counts a triple click.
+    h.run_steps(60);
+    for _ in 0..2 {
+        h.drag_at(mid);
+        h.step();
+        h.drop_at(mid);
+        h.step();
+    }
+    h.run_steps(2);
+    let draft = h.state().views[0].content.draft.clone();
+    assert_eq!(draft.map(|d| (d.index, d.text)), Some((Some(0), "Draft".to_owned())));
 }

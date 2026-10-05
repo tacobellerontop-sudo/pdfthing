@@ -102,11 +102,6 @@ impl PrintCraftApp {
                 }
                 self.dialog = Some(Dialog::NumberPages);
             }
-            link if printcraft_engine::links::for_command(link).is_some() => {
-                if let Some(l) = printcraft_engine::links::for_command(link) {
-                    self.open_url(l.url);
-                }
-            }
             "bookmark.add" => self.bookmark_action(crate::panels::BmAction::New),
             "edit.undo" => self.undo(),
             "edit.redo" => self.redo(),
@@ -136,8 +131,8 @@ impl PrintCraftApp {
                 let Some(tool) = crate::comments::CommentTool::from_command(tool) else { return false };
                 self.comment_prefs.group_tool[tool.group()] = tool;
                 self.quick_tool = crate::QuickTool::Comment(tool);
-                // Acrobat opens the Comments panel with the commenting tools.
-                if self.right.is_none() {
+                // Comment tools open the Comments panel; drawing tools keep the page clear.
+                if self.right.is_none() && !tool.has_width() {
                     self.right = Some(RightPanel::Comments);
                 }
                 // A text selection made before picking a markup tool is marked right away.
@@ -432,6 +427,7 @@ impl PrintCraftApp {
                     self.dialog = Some(Dialog::Signature);
                 }
             }
+            "draw.new" => self.new_drawing(),
             "create.blank" => self.create_blank(),
             "create.file" => self.open_dialog(),
             "create.images" => self.create_from_images_dialog(),

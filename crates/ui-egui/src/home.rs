@@ -1,4 +1,5 @@
-//! Home tab: recommended tools, open card, recent files (local only, never another app's list).
+//! Home: two ways in (a blank page to draw on, or a PDF to edit), then every other tool, then
+//! recent files (local only, never another app's list).
 
 use egui::{Align2, CornerRadius, Rect, Sense, Stroke, vec2};
 use printcraft_engine::catalog;
@@ -6,99 +7,50 @@ use printcraft_engine::catalog;
 use crate::theme::{self, Tokens};
 use crate::{LeftPanel, PrintCraftApp, icons, panels::human_size, widgets};
 
-const RECOMMENDED: [&str; 5] = ["organize", "comment", "form", "edit", "protect"];
-
 pub fn show(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        egui::Frame::NONE.inner_margin(egui::Margin { left: 36, right: 36, top: 28, bottom: 28 }).show(ui, |ui| {
-            ui.label(egui::RichText::new("Welcome to PrintCraft").font(theme::semibold(24.0)));
-            ui.label(
-                egui::RichText::new("An open-source PDF workbench — local, private, and scriptable.").color(t.text_muted).font(theme::regular(14.0)),
-            );
-            ui.add_space(14.0);
-            egui::Frame::NONE
-                .fill(t.card)
-                .stroke(Stroke::new(1.0, t.border))
-                .corner_radius(CornerRadius::same(12))
-                .inner_margin(egui::Margin::same(14))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.horizontal(|ui| {
-                        widgets::artcraft_mark(ui, 28.0);
-                        ui.vertical(|ui| {
-                            ui.label(egui::RichText::new("Join the ArtCraft community").font(theme::semibold(15.0)));
-                            ui.label(egui::RichText::new("Get help, share feedback and follow development on Discord.").color(t.text_muted));
-                        });
-                    });
-                    ui.add_space(8.0);
-                    if let Some(cmd) = widgets::community_links(ui) {
-                        app.execute(cmd);
+        let side = ((ui.available_width() - 760.0) / 2.0).clamp(28.0, 120.0);
+        egui::Frame::NONE.inner_margin(egui::Margin { left: side as i8, right: side as i8, top: 40, bottom: 32 }).show(ui, |ui| {
+            ui.label(egui::RichText::new("What do you want to make?").font(theme::semibold(26.0)));
+            ui.label(egui::RichText::new("Sketch on a blank page, or draw and write on any PDF.").color(t.text_muted).font(theme::regular(14.5)));
+            ui.add_space(20.0);
+
+            // The two ways in.
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 16.0;
+                let w = ((ui.available_width() - 16.0) / 2.0).max(220.0);
+                if start_card(ui, &t, w, "file-plus", "Blank Page", "A fresh page with the pen ready", true).clicked() {
+                    app.execute("draw.new");
+                }
+                if start_card(ui, &t, w, "folder-open", "Edit a PDF", "Open a PDF to draw, write and mark up", false).clicked() {
+                    let before = app.views.len();
+                    app.open_dialog();
+                    if app.views.len() > before {
+                        app.pick_up_pen();
                     }
-                });
-            ui.add_space(22.0);
+                }
+            });
 
-            egui::Frame::NONE
-                .fill(t.card)
-                .stroke(Stroke::new(1.0, t.border))
-                .corner_radius(CornerRadius::same(12))
-                .inner_margin(egui::Margin::same(18))
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.label(egui::RichText::new("Recommended tools").font(theme::semibold(15.0)));
-                    ui.add_space(10.0);
-                    ui.horizontal_wrapped(|ui| {
-                        ui.spacing_mut().item_spacing = vec2(14.0, 14.0);
-                        for id in RECOMMENDED {
-                            let Some(g) = catalog::group(id) else { continue };
-                            let (rect, resp) = ui.allocate_exact_size(vec2(190.0, 104.0), Sense::click());
-                            resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, g.label));
-                            let fill = if resp.hovered() { t.hover } else { t.card };
-                            ui.painter().rect(rect, CornerRadius::same(10), fill, Stroke::new(1.0, t.divider), egui::StrokeKind::Inside);
-                            let color = egui::Color32::from_rgb(g.hue[0], g.hue[1], g.hue[2]);
-                            icons::paint(ui, Rect::from_min_size(rect.min + vec2(14.0, 14.0), vec2(22.0, 22.0)), g.icon, 21.0, color);
-                            ui.painter().text(rect.min + vec2(44.0, 25.0), Align2::LEFT_CENTER, g.label, theme::semibold(13.5), t.text);
-                            let blurb = g
-                                .sections
-                                .first()
-                                .map(|s| s.items.iter().take(3).map(|i| i.label).collect::<Vec<_>>().join(" · "))
-                                .unwrap_or_default();
-                            let galley = ui.fonts_mut(|f| f.layout(blurb, theme::regular(11.5), t.text_muted, rect.width() - 28.0));
-                            ui.painter().galley(rect.min + vec2(14.0, 46.0), galley, t.text_muted);
-                            ui.painter().text(
-                                rect.left_bottom() + vec2(14.0, -14.0),
-                                Align2::LEFT_CENTER,
-                                "Use now",
-                                theme::medium(12.0),
-                                t.accent_text,
-                            );
-                            if resp.clicked() {
-                                app.left = LeftPanel::Tool(g.id);
-                                app.left_open = true;
-                            }
-                        }
-                        let (rect, resp) = ui.allocate_exact_size(vec2(170.0, 104.0), Sense::click());
-                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, "Open file"));
-                        ui.painter().rect(
-                            rect,
-                            CornerRadius::same(10),
-                            if resp.hovered() { t.hover } else { t.pasteboard },
-                            Stroke::new(1.0, t.divider),
-                            egui::StrokeKind::Inside,
-                        );
-                        icons::paint(ui, Rect::from_center_size(rect.center() - vec2(0.0, 16.0), vec2(28.0, 28.0)), "folder-open", 26.0, t.icon);
-                        ui.painter().text(rect.center() + vec2(0.0, 22.0), Align2::CENTER_CENTER, "Open file", theme::semibold(13.0), t.text);
-                        if resp.clicked() {
-                            app.open_dialog();
-                        }
-                    });
-                });
-
+            ui.add_space(30.0);
+            ui.label(egui::RichText::new("More tools").font(theme::semibold(16.0)));
+            ui.add_space(10.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
+                for g in catalog::TOOL_GROUPS {
+                    if tool_tile(ui, &t, g).clicked() {
+                        // Tools work on a document: pick one, then the tool's panel opens beside it.
+                        app.left = LeftPanel::Tool(g.id);
+                        app.left_open = true;
+                        app.open_dialog();
+                    }
+                }
+            });
             ui.add_space(26.0);
             ui.label(egui::RichText::new("Recent").font(theme::semibold(17.0)));
             ui.add_space(8.0);
             if app.recent.is_empty() {
-                ui.label(egui::RichText::new("Files you open in PrintCraft appear here. Drop a PDF anywhere to open it.").color(t.text_muted));
+                ui.label(egui::RichText::new("Files you open appear here. Drop a PDF anywhere to open it.").color(t.text_muted));
             }
             let mut open = None;
             for r in &app.recent {
@@ -138,9 +90,48 @@ pub fn show(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
             ui.add_space(20.0);
             widgets::section_title(ui, "Privacy");
             ui.label(
-                egui::RichText::new("PrintCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.")
+                egui::RichText::new("PDFThing works offline. No telemetry, no account, and no cloud processing unless you add a provider.")
                     .color(t.text_muted),
             );
         });
     });
+}
+
+/// One of the two big start buttons.
+fn start_card(ui: &mut egui::Ui, t: &Tokens, width: f32, icon: &str, title: &str, blurb: &str, primary: bool) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, 150.0), Sense::click());
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, title));
+    let (fill, fg, sub) = if primary {
+        (if resp.hovered() { t.accent_text } else { t.accent }, egui::Color32::WHITE, egui::Color32::from_white_alpha(210))
+    } else {
+        (if resp.hovered() { t.hover } else { t.card }, t.text, t.text_muted)
+    };
+    let stroke = if primary { Stroke::NONE } else { Stroke::new(1.0, t.border) };
+    ui.painter().rect(rect, CornerRadius::same(18), fill, stroke, egui::StrokeKind::Inside);
+    let badge = Rect::from_min_size(rect.min + vec2(22.0, 22.0), vec2(44.0, 44.0));
+    ui.painter().rect_filled(badge, CornerRadius::same(12), if primary { egui::Color32::from_white_alpha(40) } else { t.accent_soft });
+    icons::paint(ui, badge, icon, 22.0, if primary { egui::Color32::WHITE } else { t.accent_text });
+    ui.painter().text(rect.min + vec2(22.0, 96.0), Align2::LEFT_CENTER, title, theme::semibold(19.0), fg);
+    ui.painter().text(rect.min + vec2(22.0, 122.0), Align2::LEFT_CENTER, blurb, theme::regular(13.0), sub);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// A small tile for one tool group.
+fn tool_tile(ui: &mut egui::Ui, t: &Tokens, g: &catalog::ToolGroup) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(178.0, 48.0), Sense::click());
+    // "Edit a PDF" is the start card above; on the tile, say what the tool edits.
+    let label = if g.id == "edit" { "Edit text & images" } else { g.label };
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    ui.painter().rect(
+        rect,
+        CornerRadius::same(12),
+        if resp.hovered() { t.hover } else { t.card },
+        Stroke::new(1.0, t.divider),
+        egui::StrokeKind::Inside,
+    );
+    let color = egui::Color32::from_rgb(g.hue[0], g.hue[1], g.hue[2]);
+    icons::paint(ui, Rect::from_min_size(rect.min + vec2(12.0, 14.0), vec2(20.0, 20.0)), g.icon, 18.0, color);
+    let galley = ui.fonts_mut(|f| f.layout(label.to_owned(), theme::medium(12.5), t.text, rect.width() - 52.0));
+    ui.painter().galley(rect.min + vec2(42.0, (rect.height() - galley.size().y) / 2.0), galley, t.text);
+    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

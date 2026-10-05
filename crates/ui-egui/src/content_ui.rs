@@ -155,7 +155,9 @@ pub(crate) fn page_input(
     let corner = selected_rect.and_then(|r| handles(r).into_iter().find(|(c, ..)| c.distance(p) <= 6.0));
     if adding_text && hit.is_none() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-        if resp.clicked() {
+        // While text is being typed, a click elsewhere finishes it (the editor loses focus and
+        // commits) instead of replacing it with a new, empty box.
+        if resp.clicked() && cv.draft.is_none() {
             let at = to_display(xf, info, page, p);
             let mut style = style.clone();
             style.text.clear();

@@ -13,14 +13,12 @@ release: 1
 section: graphics
 priority: optional
 maintainer: ${PRINTCRAFT_MAINTAINER}
-vendor: Learning Machines LLC
-homepage: https://getartcraft.com/apps/printcraft
+vendor: PDFThing contributors
 license: MIT OR Apache-2.0
 description: |-
-  Open-source, native image editor that works the way Photoshop users expect.
-  Layers, masks, adjustment layers, layer styles, type and brushes; opens and
-  saves layered PSD/PSB files; 8/16/32-bit documents; GPU compositing (wgpu).
-  Includes printcraft-cli, a headless converter and command runner.
+  PDFThing: draw, sketch and mark up PDFs. Start on a blank page or open any
+  PDF and draw on it; organize, combine, sign and export too. Based on
+  PrintCraft. Includes printcraft-cli, a headless PDF tool runner.
 
 # The binaries link only glibc and libgcc_s directly. Windowing (X11/Wayland, xkbcommon) and the
 # GPU (Vulkan, EGL/GL) are loaded at runtime, so they are dependencies/recommendations here
