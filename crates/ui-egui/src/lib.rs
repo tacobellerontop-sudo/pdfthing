@@ -779,6 +779,18 @@ impl PrintCraftApp {
         self.last_opened_url = Some(url.to_string());
     }
 
+    /// Open a URL a document asked for (a link, a button's URI action, `app.launchURL`), if it is
+    /// a web or email link. Anything else could open local files or start other programs, so it
+    /// is refused with a notice (see [`printcraft_engine::links::is_safe_document_url`]).
+    pub fn open_document_url(&mut self, url: &str) {
+        if printcraft_engine::links::is_safe_document_url(url) {
+            self.open_url(url);
+        } else {
+            let shown: String = url.chars().filter(|c| !c.is_control()).take(80).collect();
+            self.notify(format!("Blocked a link to \"{shown}\": only web and email links open from documents"));
+        }
+    }
+
     pub fn notify(&mut self, msg: impl Into<String>) {
         self.toast = Some((msg.into(), 0.0));
     }

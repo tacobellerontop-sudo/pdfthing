@@ -64,3 +64,14 @@ fn help_commands_open_each_link() {
         assert_eq!(printcraft_engine::commands::command(l.command).unwrap().menu, Some("Help"));
     }
 }
+
+#[test]
+fn documents_only_open_web_and_email_links() {
+    let mut app = PrintCraftApp::new();
+    for bad in ["file:///C:/Windows/System32/calc.exe", "\\\\attacker.example\\share\\x.exe", "ms-msdt:/id PCWDiagnostic", "javascript:alert(1)"] {
+        app.open_document_url(bad);
+        assert_eq!(app.last_opened_url, None, "{bad}");
+    }
+    app.open_document_url("https://example.org/");
+    assert_eq!(app.last_opened_url.as_deref(), Some("https://example.org/"));
+}
