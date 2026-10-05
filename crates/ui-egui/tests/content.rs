@@ -55,7 +55,7 @@ fn typing_moving_styling_and_deleting_added_content() {
     h.event(egui::Event::Text("Reviewed".into()));
     h.run_steps(2);
     // Click elsewhere on the page commits and goes back to Select.
-    let p = at(&h, 250.0, 380.0);
+    let p = at(&h, 250.0, 60.0);
     click(&mut h, p);
     let a = added(&h);
     assert_eq!(a.len(), 1);

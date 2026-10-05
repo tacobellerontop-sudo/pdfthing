@@ -31,7 +31,7 @@ pub struct Job {
 
 impl Default for Job {
     fn default() -> Self {
-        Job { printer: None, copies: 1, collate: true, duplex: Duplex::Off, grayscale: false, title: "PrintCraft".into() }
+        Job { printer: None, copies: 1, collate: true, duplex: Duplex::Off, grayscale: false, title: "PDFThing".into() }
     }
 }
 

@@ -5,14 +5,14 @@
   <id>ai.storyteller.printcraft</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT OR Apache-2.0</project_license>
-  <name>PrintCraft</name>
-  <summary>Read, organize, combine, split and secure PDFs</summary>
+  <name>PDFThing</name>
+  <summary>Draw, sketch and mark up PDFs</summary>
   <developer id="ai.storyteller">
-    <name>Learning Machines LLC</name>
+    <name>PDFThing contributors</name>
   </developer>
   <description>
     <p>
-      PrintCraft is a pdf editor. Read, organize, combine, split and secure PDFs
+      PDFThing is a PDF app built for freehand drawing: sketch on a blank page, or draw, write and mark up any PDF
     </p>
   </description>
   <launchable type="desktop-id">ai.storyteller.printcraft.desktop</launchable>

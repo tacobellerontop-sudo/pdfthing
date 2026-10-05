@@ -58,7 +58,7 @@ fn main() -> ExitCode {
             #[cfg(feature = "mcp")]
             Some("mcp") => mcp(&args[1..]),
             Some("--version") => {
-                println!("printcraft-cli {}", env!("CARGO_PKG_VERSION"));
+                println!("pdfthing-cli {}", env!("CARGO_PKG_VERSION"));
                 Ok(())
             }
             _ => Err("usage: printcraft-cli <info|render|text|edit|combine|extract|split|check|tools|run|mcp|ui> …  (see source header for options)"

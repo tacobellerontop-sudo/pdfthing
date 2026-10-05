@@ -40,7 +40,7 @@ fn about_dialog_has_no_links() {
 #[test]
 fn new_drawing_opens_a_blank_page_with_the_pen() {
     let mut h = harness(|_| {});
-    h.get_by_label("New drawing").click();
+    h.get_by_label("Blank Page").click();
     h.run_steps(3);
     let app = h.state();
     assert_eq!(app.views.len(), 1);

@@ -92,7 +92,7 @@ impl McpServer {
                 Ok(json!({
                     "protocolVersion": version,
                     "capabilities": { "tools": { "listChanged": false }, "resources": { "listChanged": false, "subscribe": false } },
-                    "serverInfo": { "name": "printcraft", "title": "PrintCraft", "version": env!("CARGO_PKG_VERSION") },
+                    "serverInfo": { "name": "printcraft", "title": "PDFThing", "version": env!("CARGO_PKG_VERSION") },
                     "instructions": INSTRUCTIONS,
                 }))
             }

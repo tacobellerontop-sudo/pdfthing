@@ -1700,7 +1700,7 @@ fn run_button(app: &mut PrintCraftApp, index: usize, name: &str, action: printcr
         B::GoTo(p) => app.views[index].go_to_page(p.min(pages.saturating_sub(1))),
         B::Alert(m) => app.notify(m),
         B::Submit(url) => {
-            app.notify(format!("{name} submits the form to {url}; PrintCraft doesn't send form data. Save the document to keep your entries."))
+            app.notify(format!("{name} submits the form to {url}; PDFThing doesn't send form data. Save the document to keep your entries."))
         }
         B::ImportIcon => app.choose_field_image(name),
         B::Script(js) => {

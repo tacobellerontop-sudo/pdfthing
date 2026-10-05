@@ -1,34 +1,29 @@
-# PrintCraft app icon
+# PDFThing app icon
 
-<img src="printcraft-small.svg" alt="PrintCraft app icon: an engraved lion's head on green" width="128">
+<img src="printcraft-small.svg" alt="PDFThing app icon: a pencil drawing a coral stroke on a violet tile" width="128">
 
-**Creature:** a lion, in a frontal head-and-shoulders portrait, mane running off the bottom of the tile.
+**Motif:** a white pencil, tip down-left, drawing a coral squiggle: PDFThing is for freehand drawing.
 
-**Style:** an engraving (woodcut-weight line work) portrait in the Crafting Apps "owl template" framing:
-a full-bleed colour field, no frame or roundel, the animal looking at the viewer and filling the tile.
-
-**Palette:** exactly three colours.
+**Palette:**
 
 | Colour | Hex | Used for |
 |---|---|---|
-| Ink | `#0b0b0c` | line work and the figure's contour |
-| Paper | `#efe9dc` | the figure (the lion's silhouette) |
-| PrintCraft green (app colour) | `#12a58a` | the full-bleed field |
+| Violet (app colour) | `#8A6CFF` to `#4E2FCB` | the full-bleed tile (diagonal gradient) |
+| Coral | `#FF8A66` | the stroke |
+| White, lilac, peach, ink | `#FFFFFF` `#D9CCFF` `#FFD3C4` `#2B2340` | the pencil |
 
-**Tile:** `viewBox="0 0 512 512"`, a rounded square with `rx=112` that clips everything. Windows and Linux
-icons use the full-bleed tile. macOS icons put it on Apple's grid (an 824 px body centred on a transparent
-1024 px canvas).
+**Tile:** `viewBox="0 0 512 512"`, a rounded square with `rx=112`. Windows and Linux icons use the full-bleed
+tile. macOS icons put it on Apple's grid (an 824 px body centred on a transparent 1024 px canvas).
 
-**Provenance:** the project owner's original drawing, made in ArtCraft (2880 px, keyed to the palette), then
-vectorised with craftrules `assets/logo-options/_tools/vectorize_tile.py` (potrace; no filtering or
-warping). The source drawing is kept in craftrules at `assets/app-icons/printcraft/source.png`, not here.
-Licence: [LICENSE.txt](LICENSE.txt) (`MIT OR Apache-2.0`, like the repo).
+**Provenance:** a hand-written SVG made for this project (no third-party material). The file names still say
+`printcraft` because the build and packaging refer to them. Licence: [LICENSE.txt](LICENSE.txt)
+(`MIT OR Apache-2.0`, like the repo).
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `printcraft.svg` | the master vector (traced at 2048 px); every PNG, `.ico` and `.icns` is rendered from it |
+| `printcraft.svg` | the master vector; every PNG, `.ico` and `.icns` is rendered from it |
 | `printcraft-small.svg` | a lighter vector (traced at 1024 px) for places where size matters, such as this README |
 | `printcraft-1024.png` | 1024 px on Apple's grid; also the runtime Dock icon on macOS |
 | `printcraft.icns` | macOS icon (16–1024 px) |

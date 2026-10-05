@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=PrintCraft
+Name=PDFThing
 GenericName=PDF Editor
-Comment=Read, organize, combine, split and secure PDFs
+Comment=Draw, sketch and mark up PDFs
 Exec=printcraft %F
 TryExec=printcraft
 Icon=ai.storyteller.printcraft

@@ -7,9 +7,9 @@
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>PrintCraft</string>
+  <string>PDFThing</string>
   <key>CFBundleName</key>
-  <string>PrintCraft</string>
+  <string>PDFThing</string>
   <key>CFBundleExecutable</key>
   <string>PrintCraft</string>
   <key>CFBundleIdentifier</key>
@@ -43,7 +43,7 @@
   <key>NSRequiresAquaSystemAppearance</key>
   <false/>
   <key>NSHumanReadableCopyright</key>
-  <string>Copyright © the PrintCraft authors. MIT OR Apache-2.0.</string>
+  <string>Copyright © the PDFThing and PrintCraft authors. MIT OR Apache-2.0.</string>
 
   <!-- Printcraft's own format. -->
   <key>UTExportedTypeDeclarations</key>
@@ -52,7 +52,7 @@
       <key>UTTypeIdentifier</key>
       <string>ai.storyteller.printcraft.document</string>
       <key>UTTypeDescription</key>
-      <string>PrintCraft Document</string>
+      <string>PDFThing Document</string>
       <key>UTTypeConformsTo</key>
       <array>
         <string>public.data</string>

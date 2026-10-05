@@ -40,15 +40,15 @@ impl RecoveryStore {
         Self { dir: dir.into() }
     }
 
-    /// The platform's per-user data folder: `~/Library/Application Support/PrintCraft/Recovery`
-    /// (macOS), `%LOCALAPPDATA%\PrintCraft\Recovery` (Windows), or
+    /// The platform's per-user data folder: `~/Library/Application Support/PDFThing/Recovery`
+    /// (macOS), `%LOCALAPPDATA%\PDFThing\Recovery` (Windows), or
     /// `$XDG_DATA_HOME/printcraft/recovery` / `~/.local/share/printcraft/recovery` (others).
     pub fn default_dir() -> Option<PathBuf> {
         let env = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
         if cfg!(target_os = "macos") {
-            env("HOME").map(|h| h.join("Library/Application Support/PrintCraft/Recovery"))
+            env("HOME").map(|h| h.join("Library/Application Support/PDFThing/Recovery"))
         } else if cfg!(windows) {
-            env("LOCALAPPDATA").map(|d| d.join("PrintCraft").join("Recovery"))
+            env("LOCALAPPDATA").map(|d| d.join("PDFThing").join("Recovery"))
         } else {
             env("XDG_DATA_HOME").or_else(|| env("HOME").map(|h| h.join(".local/share"))).map(|d| d.join("printcraft/recovery"))
         }

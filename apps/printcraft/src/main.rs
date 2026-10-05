@@ -1,4 +1,4 @@
-//! PrintCraft desktop app.
+//! PDFThing desktop app.
 //!
 //! Usage: `printcraft [options] [files…]`
 //!
@@ -44,7 +44,7 @@ fn main() -> eframe::Result {
     while let Some(a) = args.next() {
         match a.as_str() {
             "--version" => {
-                println!("printcraft {}", env!("CARGO_PKG_VERSION"));
+                println!("pdfthing {}", env!("CARGO_PKG_VERSION"));
                 return Ok(());
             }
             "--control" => control_file = args.next(),
@@ -55,9 +55,12 @@ fn main() -> eframe::Result {
             _ => files.push(a),
         }
     }
+    // The app draws its own title bar everywhere: on macOS inside the native frame (traffic lights
+    // stay), elsewhere with the system frame off and its own window buttons and resize edges.
     let integrated = cfg!(target_os = "macos");
+    let custom_frame = !integrated;
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("PrintCraft")
+        .with_title("PDFThing")
         .with_inner_size([1440.0, 920.0])
         .with_min_inner_size([820.0, 520.0])
         .with_drag_and_drop(true)
@@ -71,12 +74,15 @@ fn main() -> eframe::Result {
     if integrated {
         viewport = viewport.with_fullsize_content_view(true).with_titlebar_shown(false).with_title_shown(false);
     }
-    // eframe would otherwise derive the settings folder from the app id: keep it under "PrintCraft".
-    let persistence_path = eframe::storage_dir("PrintCraft").map(|d| d.join("app.ron"));
+    if custom_frame {
+        viewport = viewport.with_decorations(false);
+    }
+    // eframe would otherwise derive the settings folder from the app id: keep it under "PDFThing".
+    let persistence_path = eframe::storage_dir("PDFThing").map(|d| d.join("app.ron"));
     let mut native = eframe::NativeOptions { viewport, persistence_path, ..Default::default() };
     prefer_integrated_gpu(&mut native);
     eframe::run_native(
-        "PrintCraft",
+        "PDFThing",
         native,
         Box::new(move |cc| {
             let mut app = PrintCraftApp::new();
@@ -84,6 +90,7 @@ fn main() -> eframe::Result {
                 app.restore(&json);
             }
             app.integrated_titlebar = integrated;
+            app.custom_window_controls = custom_frame;
             // PDFThing is aimed at freehand drawing: documents open with the pen in hand.
             app.pick_up_pen();
             app.keychain_ids = cfg!(target_os = "macos");

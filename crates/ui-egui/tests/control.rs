@@ -82,23 +82,23 @@ fn state_and_view_options() {
 #[test]
 fn inspect_and_click_by_label_and_id() {
     let (mut h, c) = harness();
-    let found = ok(&mut h, &c, "ui.inspect", json!({ "query": "read" }));
-    let read = found["widgets"].as_array().unwrap().iter().find(|w| w["label"] == "Read" && w["clickable"] == true).cloned().expect("a Read tab");
-    let rect = read["rect"].as_array().unwrap();
+    let found = ok(&mut h, &c, "ui.inspect", json!({ "query": "tools" }));
+    let tools =
+        found["widgets"].as_array().unwrap().iter().find(|w| w["label"] == "Tools" && w["clickable"] == true).cloned().expect("a Tools button");
+    let rect = tools["rect"].as_array().unwrap();
     assert!(rect[2].as_f64().unwrap() > rect[0].as_f64().unwrap());
+    let left_open = |h: &mut Harness<'static, PrintCraftApp>| !ok(h, &c, "ui.state", json!({}))["left_panel"].is_null();
 
-    ok(&mut h, &c, "ui.click", json!({ "label": "Read" }));
-    assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["mode"], "Read");
+    ok(&mut h, &c, "ui.click", json!({ "label": "Tools" }));
+    assert!(left_open(&mut h));
 
-    let all = ok(&mut h, &c, "ui.inspect", json!({ "query": "all tools" }));
-    let id = all["widgets"].as_array().unwrap().iter().find(|w| w["label"] == "All tools" && w["clickable"] == true).unwrap()["id"].clone();
-    ok(&mut h, &c, "ui.click", json!({ "id": id }));
-    assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["mode"], "AllTools");
+    ok(&mut h, &c, "ui.click", json!({ "id": tools["id"].clone() }));
+    assert!(!left_open(&mut h));
 
-    // Clicking a point works too (here: the Read tab's centre).
+    // Clicking a point works too (here: the Tools button's centre).
     let [x0, y0, x1, y1] = [0, 1, 2, 3].map(|i| rect[i].as_f64().unwrap());
     ok(&mut h, &c, "ui.click", json!({ "x": (x0 + x1) / 2.0, "y": (y0 + y1) / 2.0 }));
-    assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["mode"], "Read");
+    assert!(left_open(&mut h));
 
     let err = call(&mut h, &c, "ui.click", json!({ "label": "No such button" })).unwrap_err();
     assert!(err.contains("no enabled clickable widget"), "{err}");
