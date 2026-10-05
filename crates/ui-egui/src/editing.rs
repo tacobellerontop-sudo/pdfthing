@@ -49,6 +49,8 @@ impl PrintCraftApp {
                     }
                     Edit::InsertBlankPage { at, .. } => view.select_pages(&[at.min(info.pages.len() - 1)]),
                     Edit::DeletePages { .. } => view.select_pages(&[]),
+                    // Strokes from the pen and shape tools stay unselected so drawing can go on.
+                    Edit::AddAnnotation(_) if matches!(self.quick_tool, crate::QuickTool::Comment(t) if t.has_width()) => {}
                     Edit::AddAnnotation(a) => {
                         // Select the new comment (appended last among the page's comments).
                         let newest = info.annotations.iter().filter(|x| x.page == a.page && x.in_reply_to.is_none()).map(|x| x.index).max();

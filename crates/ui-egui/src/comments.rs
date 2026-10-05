@@ -322,6 +322,8 @@ pub enum Gesture {
     Move { page: usize, index: usize, from: Pos2 },
     /// Resizing a comment by one of its handles: (dx, dy) ∈ {-1, 0, 1}² says which sides move.
     Resize { page: usize, index: usize, handle: (i8, i8), from: Pos2 },
+    /// Dragging a selection box from `from` (screen); `add` keeps what was already selected.
+    Marquee { page: usize, from: Pos2, add: bool },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -356,6 +358,11 @@ pub struct Composer {
 pub struct CommentView {
     /// The selected comment: (page, index in `/Annots`).
     pub selected: Option<(usize, usize)>,
+    /// More comments selected along with `selected` (Shift/Ctrl+click, or a selection box).
+    /// They only count while `also_for` still equals `selected`, so anything that replaces or
+    /// clears `selected` drops them too.
+    pub also: Vec<(usize, usize)>,
+    pub also_for: Option<(usize, usize)>,
     pub gesture: Option<Gesture>,
     pub composer: Option<Composer>,
     /// Reply being typed under the selected card.
@@ -390,6 +397,45 @@ pub struct CommentView {
     pub context_at: Option<(usize, [f64; 2])>,
     /// A one-shot tool just finished; the app returns to the Select tool unless pinned.
     pub tool_done: bool,
+}
+
+impl CommentView {
+    /// Every selected comment, the primary one first.
+    pub fn selection(&self) -> Vec<(usize, usize)> {
+        let Some(first) = self.selected else { return Vec::new() };
+        let mut all = vec![first];
+        if self.also_for == Some(first) {
+            for s in &self.also {
+                if !all.contains(s) {
+                    all.push(*s);
+                }
+            }
+        }
+        all
+    }
+
+    pub fn is_selected(&self, s: (usize, usize)) -> bool {
+        self.selection().contains(&s)
+    }
+
+    /// Replace the selection (the first item becomes the primary one).
+    pub fn set_selection(&mut self, items: Vec<(usize, usize)>) {
+        self.selected = items.first().copied();
+        self.also = items.into_iter().skip(1).collect();
+        self.also_for = self.selected;
+    }
+
+    /// Shift/Ctrl+click: add the comment to the selection, or take it out.
+    fn toggle(&mut self, s: (usize, usize)) {
+        let mut all = self.selection();
+        match all.iter().position(|x| *x == s) {
+            Some(i) => {
+                all.remove(i);
+            }
+            None => all.push(s),
+        }
+        self.set_selection(all);
+    }
 }
 
 /// Comments panel order (Acrobat: Sort by page, author, date, type, colour).
@@ -519,7 +565,11 @@ pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, cx: &PageCx<'_>, 
         && let Some(p) = pointer.filter(|p| page_rect.contains(*p))
     {
         cv.context_at = Some((cx.page, cx.to_user(p)));
-        cv.selected = cx.hit(p).map(|a| (cx.page, a.index));
+        match cx.hit(p).map(|a| (cx.page, a.index)) {
+            // Right-clicking one of several selected comments keeps them all selected.
+            Some(s) if cv.is_selected(s) => {}
+            hit => cv.selected = hit,
+        }
     }
     match cx.tool {
         QuickTool::Comment(tool) if tool.draws() => {
@@ -642,6 +692,7 @@ pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, cx: &PageCx<'_>, 
                 cv.gesture = None;
                 if let [point, at] = points[..]
                     && (point[0] - at[0]).hypot(point[1] - at[1]) >= 8.0
+                    && cv.composer.is_none()
                 {
                     cv.composer = Some(Composer { page, at, kind: ComposerKind::Callout { point }, text: String::new(), focus: true });
                 }
@@ -673,6 +724,8 @@ pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, cx: &PageCx<'_>, 
             }
             if resp.clicked()
                 && over_page
+                // A click while a card is open finishes that card instead.
+                && cv.composer.is_none()
                 && let Some(p) = pointer
             {
                 cv.composer = Some(Composer { page: cx.page, at: cx.to_user(p), kind: ComposerKind::Caret, text: String::new(), focus: true });
@@ -689,6 +742,8 @@ pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, cx: &PageCx<'_>, 
             }
             if resp.clicked()
                 && over_page
+                // A click while a card is open finishes that card instead.
+                && cv.composer.is_none()
                 && let Some(p) = pointer
             {
                 let kind = if tool == CommentTool::Note { ComposerKind::Note } else { ComposerKind::TextBox };
@@ -716,11 +771,19 @@ fn select_input(
     origin: Option<Pos2>,
     pressed_here: bool,
 ) -> bool {
+    let modifier = ui.input(|i| i.modifiers.shift || i.modifiers.command);
+    // Text under the press starts a text selection; anywhere else, a selection box.
+    let over_text = |p: Pos2| {
+        let (vx, vy) = cx.xf.screen_to_view(p);
+        view.texts.get(&cx.page).is_some_and(|t| t.glyphs.iter().any(|g| vx >= g.rect[0] && vx <= g.rect[2] && vy >= g.rect[1] && vy <= g.rect[3]))
+    };
+    let press_over_text = origin.is_some_and(over_text);
     let cv = &mut view.comments;
+    let single = cv.selection().len() <= 1;
     let selected = cv.selected.filter(|(p, _)| *p == cx.page).and_then(|(_, i)| cx.get(i));
-    // Handles of a selected, resizable comment.
+    // Handles of a selected, resizable comment (only when it is selected on its own).
     let handle_at = |p: Pos2| -> Option<(i8, i8)> {
-        let a = selected.filter(|a| cx.allowed && resizable(a))?;
+        let a = selected.filter(|a| single && cx.allowed && resizable(a))?;
         let r = cx.screen_rect(a);
         HANDLES.into_iter().find(|h| handle_pos(r, *h).distance(p) <= 7.0)
     };
@@ -748,15 +811,34 @@ fn select_input(
         } else if let Some(a) = cx.hit(o)
             && !is_markup(&a.subtype)
         {
-            cv.selected = Some((cx.page, a.index));
+            let s = (cx.page, a.index);
+            if cv.is_selected(s) {
+                // Dragging one of several selected comments moves them all.
+                let mut all = cv.selection();
+                all.retain(|x| *x != s);
+                all.insert(0, s);
+                cv.set_selection(all);
+            } else if modifier {
+                let mut all = cv.selection();
+                all.insert(0, s);
+                cv.set_selection(all);
+            } else {
+                cv.selected = Some(s);
+            }
             cv.reveal = true;
             if cx.allowed {
                 cv.gesture = Some(Gesture::Move { page: cx.page, index: a.index, from: o });
             }
             consumed = true;
+        } else if cx.hit(o).is_none() && (modifier || !press_over_text) {
+            cv.gesture = Some(Gesture::Marquee { page: cx.page, from: o, add: modifier });
+            if !modifier {
+                cv.selected = None;
+            }
+            consumed = true;
         }
     }
-    if matches!(cv.gesture, Some(Gesture::Move { page, .. } | Gesture::Resize { page, .. }) if page == cx.page) {
+    if matches!(cv.gesture, Some(Gesture::Move { page, .. } | Gesture::Resize { page, .. } | Gesture::Marquee { page, .. }) if page == cx.page) {
         consumed = true;
     }
     if resp.drag_stopped()
@@ -767,9 +849,36 @@ fn select_input(
                 cv.gesture = None;
                 let (a, b) = (cx.to_user(from), cx.to_user(p));
                 let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+                // The dragged comment and every other selected one on this page that can move.
+                let moving: Vec<usize> = cv
+                    .selection()
+                    .into_iter()
+                    .filter(|(pg, _)| *pg == page)
+                    .filter_map(|(_, i)| cx.get(i))
+                    .filter(|a| a.index == index || (!is_markup(&a.subtype) && !a.locked))
+                    .map(|a| a.index)
+                    .collect();
                 if from.distance(p) >= 2.0 {
-                    view.pending_edit = Some(Edit::MoveAnnotation { page, index, dx, dy });
+                    view.pending_edit = Some(match moving[..] {
+                        [] | [_] => Edit::MoveAnnotation { page, index, dx, dy },
+                        _ => Edit::Batch {
+                            label: format!("Move {} comments", moving.len()),
+                            edits: moving.iter().map(|&index| Edit::MoveAnnotation { page, index, dx, dy }).collect(),
+                        },
+                    });
                 }
+            }
+            Some(Gesture::Marquee { page, from, add }) if page == cx.page => {
+                cv.gesture = None;
+                let r = Rect::from_two_pos(from, p);
+                let mut all = if add { cv.selection() } else { Vec::new() };
+                for a in cx.comments().filter(|a| cx.screen_rects(a).iter().any(|s| s.intersects(r))) {
+                    if !all.contains(&(page, a.index)) {
+                        all.push((page, a.index));
+                    }
+                }
+                cv.set_selection(all);
+                cv.reveal = cv.selected.is_some();
             }
             Some(Gesture::Resize { page, index, handle, from }) if page == cx.page => {
                 cv.gesture = None;
@@ -789,11 +898,17 @@ fn select_input(
     let on_page = pointer.is_some_and(|p| cx.xf.rect.contains(p));
     if resp.clicked() && on_page {
         match pointer.and_then(|p| cx.hit(p)) {
+            Some(a) if modifier => {
+                cv.toggle((cx.page, a.index));
+                cv.reveal = true;
+                consumed = true;
+            }
             Some(a) => {
                 cv.selected = Some((cx.page, a.index));
                 cv.reveal = true;
                 consumed = true;
             }
+            None if modifier => consumed = true,
             None => cv.selected = None,
         }
     }
@@ -848,11 +963,26 @@ pub(crate) fn paint_page(ui: &egui::Ui, painter: &egui::Painter, cx: &PageCx<'_>
     if cx.tool == QuickTool::Select
         && cv.gesture.is_none()
         && let Some(a) = pointer.and_then(|p| cx.hit(p))
-        && cv.selected != Some((cx.page, a.index))
+        && !cv.is_selected((cx.page, a.index))
     {
         for r in cx.screen_rects(a) {
             painter.rect_stroke(r.expand(2.0), CornerRadius::same(2), Stroke::new(1.0, SELECT_BLUE.gamma_multiply(0.7)), egui::StrokeKind::Outside);
         }
+    }
+    let selection = cv.selection();
+    // Several selected comments: a frame each, all following a move, and no resize handles.
+    if selection.len() > 1 {
+        let moving = match (&cv.gesture, pointer) {
+            (Some(Gesture::Move { page, index, from }), Some(p)) if *page == cx.page && selection.contains(&(*page, *index)) => p - *from,
+            _ => vec2(0.0, 0.0),
+        };
+        for a in selection.iter().filter(|(p, _)| *p == cx.page).filter_map(|(_, i)| cx.get(*i)) {
+            let shift = if is_markup(&a.subtype) || a.locked { vec2(0.0, 0.0) } else { moving };
+            for r in cx.screen_rects(a) {
+                painter.rect_stroke(r.expand(2.0).translate(shift), CornerRadius::ZERO, Stroke::new(1.0, SELECT_BLUE), egui::StrokeKind::Middle);
+            }
+        }
+        return paint_gesture(painter, cx, view);
     }
     if let Some((page, index)) = cv.selected
         && page == cx.page
@@ -884,6 +1014,14 @@ pub(crate) fn paint_page(ui: &egui::Ui, painter: &egui::Painter, cx: &PageCx<'_>
 }
 
 fn paint_gesture(painter: &egui::Painter, cx: &PageCx<'_>, view: &DocView) {
+    if let Some(Gesture::Marquee { page, from, .. }) = &view.comments.gesture
+        && *page == cx.page
+        && let Some(p) = painter.ctx().input(|i| i.pointer.hover_pos())
+    {
+        let r = Rect::from_two_pos(*from, p);
+        painter.rect_filled(r, CornerRadius::ZERO, SELECT_BLUE.gamma_multiply(0.08));
+        painter.rect_stroke(r, CornerRadius::ZERO, Stroke::new(1.0, SELECT_BLUE), egui::StrokeKind::Middle);
+    }
     if let Some(Gesture::Draw { page, tool, points }) = &view.comments.gesture
         && *page == cx.page
     {
@@ -1005,7 +1143,9 @@ pub(crate) fn composer(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
         ComposerKind::Edit(_) => "Edit comment",
     };
     let pos = pos2(anchor.x + 12.0, anchor.y);
-    egui::Area::new(egui::Id::new(("comment-composer", view.id.0))).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
+    // The card was opened by this very click: don't treat that click as one outside it.
+    let just_opened = c.focus;
+    let card = egui::Area::new(egui::Id::new(("comment-composer", view.id.0))).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).inner_margin(egui::Margin::same(12)).corner_radius(CornerRadius::same(8)).show(ui, |ui| {
             ui.set_width(260.0);
             ui.horizontal(|ui| {
@@ -1047,6 +1187,28 @@ pub(crate) fn composer(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
             });
         });
     });
+    // A click anywhere outside the card finishes it, like Post: kept when there is text,
+    // dropped when it is empty.
+    if !post && !cancel && !just_opened {
+        let outside = ctx.input(|i| i.pointer.any_click() && i.pointer.interact_pos().is_some_and(|p| !card.response.rect.contains(p)));
+        if outside {
+            let c = view.comments.composer.as_ref()?;
+            let changed = match c.kind {
+                // An untouched edit closes without adding an undo step.
+                ComposerKind::Edit(index) => info
+                    .annotations
+                    .iter()
+                    .find(|a| a.page == page && a.index == index)
+                    .is_none_or(|a| a.contents.as_deref().unwrap_or_default().trim_end() != c.text.trim_end()),
+                _ => !c.text.trim().is_empty(),
+            };
+            if changed {
+                post = true;
+            } else {
+                cancel = true;
+            }
+        }
+    }
     if cancel {
         view.comments.composer = None;
         return None;
@@ -1111,11 +1273,23 @@ pub fn text_box_rect(at: [f64; 2], text: &str, size: f64) -> [f64; 4] {
 }
 
 /// Delete / Escape handling for comments (only while no text field has focus).
-pub(crate) fn keys(ctx: &egui::Context, view: &mut DocView, tool: &mut QuickTool, allowed: bool) {
+pub(crate) fn keys(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, tool: &mut QuickTool, allowed: bool) {
     if ctx.egui_wants_keyboard_input() {
         return;
     }
     let cv = &mut view.comments;
+    // ⌘A with a comment selected: every comment on that page.
+    if let Some((page, _)) = cv.selected
+        && ctx.input_mut(|i| i.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::A)))
+    {
+        let mut all = cv.selection();
+        for a in info.annotations.iter().filter(|a| a.page == page && a.in_reply_to.is_none() && a.subtype != "Popup") {
+            if !all.contains(&(page, a.index)) {
+                all.push((page, a.index));
+            }
+        }
+        cv.set_selection(all);
+    }
     if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         // One step back per press: cancel the gesture, then deselect, then drop the tool.
         let cancelled = cv.gesture.take().is_some() || cv.selected.take().is_some();
@@ -1123,12 +1297,24 @@ pub(crate) fn keys(ctx: &egui::Context, view: &mut DocView, tool: &mut QuickTool
             *tool = QuickTool::Select;
         }
     }
-    if allowed
-        && let Some((page, index)) = cv.selected
-        && ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace))
-    {
-        cv.selected = None;
-        view.pending_edit = Some(Edit::DeleteAnnotation { page, index });
+    if allowed && cv.selected.is_some() && ctx.input(|i| i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)) {
+        view.pending_edit = delete_selection(cv);
+    }
+}
+
+/// Delete every selected comment as one undo step (later indices first on each page, since
+/// deleting one shifts the ones after it).
+fn delete_selection(cv: &mut CommentView) -> Option<Edit> {
+    let mut all = cv.selection();
+    cv.selected = None;
+    match all[..] {
+        [] => None,
+        [(page, index)] => Some(Edit::DeleteAnnotation { page, index }),
+        _ => {
+            all.sort_unstable_by(|a, b| b.cmp(a));
+            let label = format!("Delete {} comments", all.len());
+            Some(Edit::Batch { label, edits: all.into_iter().map(|(page, index)| Edit::DeleteAnnotation { page, index }).collect() })
+        }
     }
 }
 
@@ -1184,9 +1370,10 @@ pub(crate) fn context_menu(ui: &mut egui::Ui, view: &mut DocView, info: &DocInfo
                 ui.close();
             }
             ui.separator();
-            if ui.add_enabled(allowed && !a.locked, egui::Button::new("Delete")).clicked() {
-                view.comments.selected = None;
-                action = Some(CanvasAction::Edit(Box::new(Edit::DeleteAnnotation { page, index })));
+            let count = view.comments.selection().len();
+            let label = if count > 1 { format!("Delete {count} comments") } else { "Delete".to_owned() };
+            if ui.add_enabled(allowed && !a.locked, egui::Button::new(label)).clicked() {
+                action = delete_selection(&mut view.comments).map(|e| CanvasAction::Edit(Box::new(e)));
                 ui.close();
             }
             if ui.add_enabled(allowed, egui::Button::new("Properties…")).clicked() {

@@ -235,6 +235,8 @@ pub(crate) fn page_input(
     }
     let at = to_user(xf, info, page, pointer);
     match tool {
+        // A click while text is being typed finishes that text (it loses focus) instead.
+        FillTool::Text if view.fill_text.is_some() => None,
         FillTool::Text => {
             view.fill_text = Some(TypeBox { page, at: [at[0], at[1] + TEXT_SIZE * 0.6], text: String::new(), focus: true });
             None

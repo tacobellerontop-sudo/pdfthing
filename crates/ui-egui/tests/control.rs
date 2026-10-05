@@ -144,7 +144,8 @@ fn drawing_a_comment_by_drag_and_its_context_menu() {
     ok(&mut h, &c, "ui.drag", json!({ "from": a, "to": b }));
     h.run_steps(2);
     let st = ok(&mut h, &c, "ui.state", json!({}));
-    assert_eq!(st["active"]["selected_comment"], json!({ "page": 1, "index": 1 }), "{st}");
+    // Drawn shapes stay unselected, so drawing can go on.
+    assert_eq!(st["active"]["selected_comment"], Value::Null, "{st}");
     assert_eq!(st["documents"][0]["dirty"], true);
     // A right-click on it offers the comment menu.
     ok(&mut h, &c, "ui.click", json!({ "x": (a[0] + b[0]) / 2.0, "y": (a[1] + b[1]) / 2.0, "button": "secondary" }));

@@ -24,7 +24,14 @@ trailer << /Root 1 0 R >>
 %%EOF";
 
 fn harness(setup: impl FnOnce(&mut PrintCraftApp) + 'static) -> Harness<'static, PrintCraftApp> {
-    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
+    harness_with(Harness::builder(), setup)
+}
+
+fn harness_with(
+    builder: egui_kittest::HarnessBuilder<PrintCraftApp>,
+    setup: impl FnOnce(&mut PrintCraftApp) + 'static,
+) -> Harness<'static, PrintCraftApp> {
+    let mut h = builder.with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
         let mut app = PrintCraftApp::new();
         app.open_bytes("text.pdf", None, TEXT_FIXTURE.to_vec()).expect("opens");
         app.set_option("left", "closed").unwrap();
@@ -275,7 +282,9 @@ fn comments_take_checkmarks_lock_hide_and_summarize() {
     drag_pt(&mut h, (40.0, 100.0), (140.0, 40.0));
     h.state_mut().set_option("quick", "select").unwrap();
     h.run_steps(2);
-    assert_eq!(h.state().views[0].comments.selected, Some((0, 0)), "the new comment is selected");
+    // Drawn shapes aren't selected; pick it with the Select tool.
+    click_pt(&mut h, (90.0, 70.0));
+    assert_eq!(h.state().views[0].comments.selected, Some((0, 0)), "the comment is selected");
     // The card's checkmark.
     h.get_by_label("Mark with checkmark").click();
     h.run_steps(3);
@@ -441,6 +450,7 @@ fn make_current_properties_default() {
         width: Some(5.0),
     });
     h.run_steps(2);
+    click_pt(&mut h, (90.0, 70.0));
     h.get_by_label("More").click();
     h.run_steps(2);
     h.get_by_label("Make Current Properties Default").click();
@@ -528,4 +538,114 @@ fn erasing_part_of_a_drawing() {
     // Rubbing along the rest removes the drawing.
     drag_pt(&mut h, (40.0, 60.0), (260.0, 60.0));
     assert!(comments(&h).is_empty(), "{:?}", comments(&h));
+}
+
+#[test]
+fn drawing_leaves_nothing_selected_and_the_page_clear() {
+    let mut h = harness(|app| app.set_option("quick", "ink").unwrap());
+    drag_pt(&mut h, (40.0, 100.0), (140.0, 40.0));
+    drag_pt(&mut h, (160.0, 100.0), (260.0, 40.0));
+    assert_eq!(comments(&h).len(), 2);
+    assert_eq!(h.state().views[0].comments.selected, None, "no selection box after a stroke");
+    assert!(h.state().right.is_none(), "the pen doesn't open the Comments panel");
+}
+
+#[test]
+fn clicking_outside_a_text_box_keeps_the_text() {
+    let mut h = harness(|app| app.set_option("quick", "freetext").unwrap());
+    click_pt(&mut h, (50.0, 60.0));
+    field(&h, "Type text").type_text("Kept");
+    h.run_steps(2);
+    // A click elsewhere on the page finishes it, like Post, and opens no new box.
+    click_pt(&mut h, (250.0, 20.0));
+    h.run_steps(2);
+    let c = comments(&h);
+    assert_eq!(c.len(), 1, "{c:?}");
+    assert_eq!((c[0].subtype.as_str(), c[0].contents.as_deref()), ("FreeText", Some("Kept")));
+    assert!(h.state().views[0].comments.composer.is_none());
+    // An empty box just goes away.
+    h.state_mut().set_option("quick", "freetext").unwrap();
+    click_pt(&mut h, (50.0, 160.0));
+    assert!(h.state().views[0].comments.composer.is_some());
+    click_pt(&mut h, (250.0, 20.0));
+    assert!(h.state().views[0].comments.composer.is_none());
+    assert_eq!(comments(&h).len(), 1);
+}
+
+#[test]
+fn double_clicking_a_text_box_edits_it() {
+    // 60 fps steps, so two clicks fall inside egui's double-click window.
+    let mut h = harness_with(Harness::builder().with_step_dt(1.0 / 60.0), |app| app.set_option("quick", "freetext").unwrap());
+    click_pt(&mut h, (50.0, 60.0));
+    field(&h, "Type text").type_text("First");
+    h.run_steps(2);
+    h.get_by_label("Post").click();
+    h.run_steps(3);
+    h.state_mut().set_option("quick", "select").unwrap();
+    let r = comments(&h)[0].rect;
+    let p = at(&h, (r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
+    h.hover_at(p);
+    // Let the click that placed the box age out, or egui counts a triple click.
+    h.run_steps(60);
+    for _ in 0..2 {
+        h.drag_at(p);
+        h.step();
+        h.drop_at(p);
+        h.step();
+    }
+    h.run_steps(2);
+    let composer = h.state().views[0].comments.composer.clone();
+    assert!(matches!(composer.map(|c| c.kind), Some(printcraft_ui_egui::comments::ComposerKind::Edit(_))), "the editor opened");
+}
+
+/// Shift+click (with the modifier held around the click).
+fn shift_click_pt(h: &mut Harness<'static, PrintCraftApp>, p: (f32, f32)) {
+    h.event(egui::Event::ModifiersChanged(egui::Modifiers::SHIFT));
+    h.run_steps(1);
+    click_pt(h, p);
+    h.event(egui::Event::ModifiersChanged(egui::Modifiers::default()));
+    h.run_steps(1);
+}
+
+#[test]
+fn several_comments_are_selected_moved_and_deleted_together() {
+    let mut h = harness(|app| app.set_option("quick", "square").unwrap());
+    drag_pt(&mut h, (20.0, 60.0), (60.0, 20.0));
+    h.state_mut().set_option("quick", "square").unwrap();
+    drag_pt(&mut h, (200.0, 60.0), (240.0, 20.0));
+    h.state_mut().set_option("quick", "select").unwrap();
+    click_pt(&mut h, (40.0, 40.0));
+    shift_click_pt(&mut h, (220.0, 40.0));
+    let mut sel = h.state().views[0].comments.selection();
+    sel.sort();
+    assert_eq!(sel, [(0, 0), (0, 1)], "Shift+click adds to the selection");
+    // Dragging one moves both, as one step.
+    drag_pt(&mut h, (40.0, 40.0), (40.0, 80.0));
+    let c = comments(&h);
+    assert!(c.iter().all(|a| (a.rect[1] - 60.0).abs() < 3.0), "both moved up 40 pt: {c:?}");
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().can_undo(), Some("Move 2 comments"));
+    // Shift+click again takes one out.
+    shift_click_pt(&mut h, (220.0, 80.0));
+    assert_eq!(h.state().views[0].comments.selection(), [(0, 0)]);
+    // A selection box picks both; Delete removes both in one step.
+    click_pt(&mut h, (150.0, 190.0));
+    drag_pt(&mut h, (5.0, 110.0), (295.0, 50.0));
+    assert_eq!(h.state().views[0].comments.selection().len(), 2, "the box selected both");
+    h.key_press(egui::Key::Delete);
+    h.run_steps(3);
+    assert!(comments(&h).is_empty());
+    h.state_mut().undo();
+    h.run_steps(2);
+    assert_eq!(comments(&h).len(), 2, "one undo brings both back");
+}
+
+#[test]
+fn the_add_page_button_adds_a_blank_page_after_the_current_one() {
+    let mut h = harness(|_| {});
+    h.get_by_label("Add a blank page").click();
+    h.run_steps(3);
+    let s = h.state();
+    let info = &s.session.get(s.views[0].id).unwrap().info;
+    assert_eq!(info.pages.len(), 3);
+    assert_eq!(s.views[0].current, 1, "the new page follows page 1 and is shown");
 }
