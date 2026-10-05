@@ -14,7 +14,6 @@ section: graphics
 priority: optional
 maintainer: ${PRINTCRAFT_MAINTAINER}
 vendor: Learning Machines LLC
-homepage: https://getartcraft.com/apps/printcraft
 license: MIT OR Apache-2.0
 description: |-
   Open-source, native image editor that works the way Photoshop users expect.

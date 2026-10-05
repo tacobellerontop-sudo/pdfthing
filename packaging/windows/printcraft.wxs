@@ -26,9 +26,6 @@
 
     <Icon Id="PrintcraftIcon" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="PrintcraftIcon" />
-    <Property Id="ARPURLINFOABOUT" Value="https://getartcraft.com/apps/printcraft" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://getartcraft.com/apps/printcraft" />
-    <Property Id="ARPHELPLINK" Value="https://discord.gg/artcraft" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="PrintCraft" />

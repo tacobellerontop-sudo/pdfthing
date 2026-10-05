@@ -17,11 +17,6 @@
   </description>
   <launchable type="desktop-id">ai.storyteller.printcraft.desktop</launchable>
   <icon type="stock">ai.storyteller.printcraft</icon>
-  <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
-  <url type="homepage">https://getartcraft.com/apps/printcraft</url>
-  <url type="bugtracker">https://github.com/storytold/printcraft/issues</url>
-  <url type="help">https://github.com/storytold/printcraft</url>
-  <url type="contact">https://discord.gg/artcraft</url>
   <categories>
     <category>Graphics</category>
     <category>RasterGraphics</category>
@@ -33,12 +28,6 @@
     <keyword>psd</keyword>
     <keyword>layers</keyword>
   </keywords>
-  <screenshots>
-    <screenshot type="default">
-      <caption>Editing The Great Wave off Kanagawa with type layers and adjustment layers</caption>
-      <image>https://raw.githubusercontent.com/storytold/printcraft/main/docs/images/printcraft-demo.jpg</image>
-    </screenshot>
-  </screenshots>
   <branding>
     <color type="primary" scheme_preference="light">#9fd0ff</color>
     <color type="primary" scheme_preference="dark">#1f64ba</color>

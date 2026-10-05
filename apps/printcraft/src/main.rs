@@ -82,6 +82,8 @@ fn main() -> eframe::Result {
                 app.restore(&json);
             }
             app.integrated_titlebar = integrated;
+            // PDFThing is aimed at freehand drawing: documents open with the pen in hand.
+            app.pick_up_pen();
             app.keychain_ids = cfg!(target_os = "macos");
             if let Some(file) = &control_file {
                 let client = app.attach_control(&cc.egui_ctx);

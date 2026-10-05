@@ -127,6 +127,23 @@ impl PrintCraftApp {
         }
     }
 
+    /// File ▸ New drawing: a blank page with the pen picked up and kept between strokes.
+    pub(crate) fn new_drawing(&mut self) {
+        let before = self.views.len();
+        self.create_blank();
+        if self.views.len() > before {
+            self.pick_up_pen();
+        }
+    }
+
+    /// Select the freehand pen and keep it selected after each stroke.
+    pub fn pick_up_pen(&mut self) {
+        let pen = crate::comments::CommentTool::Ink;
+        self.quick_tool = crate::QuickTool::Comment(pen);
+        self.comment_prefs.group_tool[pen.group()] = pen;
+        self.comment_prefs.pinned = true;
+    }
+
     /// Create ▸ Images: several images, one page each, in one new document.
     pub(crate) fn create_from_images_dialog(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]

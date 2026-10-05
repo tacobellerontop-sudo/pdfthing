@@ -60,6 +60,11 @@ impl Shortcut {
         Self { command: true, shift: false, mac_ctrl: false, key }
     }
 
+    /// A bare key (no modifiers): only while no text field has focus, so register it with `ct`.
+    const fn key(key: &'static str) -> Self {
+        Self { command: false, shift: false, mac_ctrl: false, key }
+    }
+
     const fn cmd_shift(key: &'static str) -> Self {
         Self { command: true, shift: true, mac_ctrl: false, key }
     }
@@ -146,6 +151,7 @@ const HELP: Option<&str> = Some("Help");
 /// Every command, in menu order.
 pub const COMMANDS: &[CommandSpec] = &[
     c("file.open", "Open…", FILE, Some(Shortcut::cmd("O")), Nothing, "folder-open"),
+    c("draw.new", "New drawing", FILE, Some(Shortcut::cmd_shift("N")), Nothing, "pencil"),
     c("create.blank", "New blank PDF", FILE, None, Nothing, "file-plus-2"),
     c("page.copy", "Copy pages", None, None, Document, "copy"),
     c("page.cut", "Cut pages", None, None, Assembly, "scissors"),
@@ -178,7 +184,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("comment.highlight", "Highlight text", None, None, Annotate, "highlighter"),
     c("comment.underline", "Underline text", None, None, Annotate, "underline"),
     c("comment.strikeout", "Strikethrough text", None, None, Annotate, "strikethrough"),
-    c("comment.ink", "Draw freehand", None, None, Annotate, "pencil"),
+    ct("comment.ink", "Draw freehand", None, Some(Shortcut::key("P")), Annotate, "pencil"),
     c("comment.line", "Draw a line", None, None, Annotate, "minus"),
     c("comment.arrow", "Draw an arrow", None, None, Annotate, "move-right"),
     c("comment.square", "Draw a rectangle", None, None, Annotate, "square"),
@@ -190,7 +196,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("comment.caret", "Insert text", None, None, Annotate, "text-cursor-input"),
     c("comment.replace", "Replace text", None, None, Annotate, "replace"),
     c("comment.attach", "Attach a file", None, None, Annotate, "paperclip"),
-    c("comment.eraser", "Erase drawings", None, None, Annotate, "eraser"),
+    ct("comment.eraser", "Erase drawings", None, Some(Shortcut::key("E")), Annotate, "eraser"),
     c("form.fields", "Form fields panel", VIEW, None, Document, "list"),
     c("form.clear", "Clear form", EDIT, None, FillForms, "eraser"),
     c("comment.flatten", "Flatten comments", None, None, HasComments, "layers"),
@@ -296,10 +302,6 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.split", "Split document…", PAGES, None, Assembly, "scissors"),
     c("page.number", "Number pages…", PAGES, None, Assembly, "hash"),
     c("help.shortcuts", "Keyboard shortcuts", HELP, None, Nothing, "circle-help"),
-    c("help.discord", "Join the ArtCraft Discord", HELP, None, Nothing, "messages-square"),
-    c("help.app_page", "PrintCraft web page", HELP, None, Nothing, "globe"),
-    c("help.github", "PrintCraft on GitHub", HELP, None, Nothing, "code-xml"),
-    c("help.website", "ArtCraft website", HELP, None, Nothing, "external-link"),
     c("help.about", "About PrintCraft", HELP, None, Nothing, "info"),
 ];
 

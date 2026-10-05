@@ -25,15 +25,18 @@ pub fn show(app: &mut PrintCraftApp, ui: &mut egui::Ui) {
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.horizontal(|ui| {
-                        widgets::artcraft_mark(ui, 28.0);
+                        icons::paint(ui, Rect::from_min_size(ui.cursor().min, vec2(28.0, 28.0)), "pencil", 26.0, t.accent);
+                        ui.add_space(36.0);
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new("Join the ArtCraft community").font(theme::semibold(15.0)));
-                            ui.label(egui::RichText::new("Get help, share feedback and follow development on Discord.").color(t.text_muted));
+                            ui.label(egui::RichText::new("Draw freehand").font(theme::semibold(15.0)));
+                            ui.label(
+                                egui::RichText::new("Start on a blank page, or open a PDF and draw on it. Pen: P · Eraser: E").color(t.text_muted),
+                            );
                         });
                     });
                     ui.add_space(8.0);
-                    if let Some(cmd) = widgets::community_links(ui) {
-                        app.execute(cmd);
+                    if widgets::icon_pill(ui, "pencil", "New drawing", true).clicked() {
+                        app.execute("draw.new");
                     }
                 });
             ui.add_space(22.0);

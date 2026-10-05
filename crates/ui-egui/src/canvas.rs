@@ -1898,6 +1898,15 @@ fn quick_bar(app: &mut PrintCraftApp, area: Rect, ui: &mut egui::Ui) {
                     if icons::button(ui, "hand", 32.0, app.quick_tool == QuickTool::Hand, "Hand (H)").clicked() {
                         app.quick_tool = QuickTool::Hand;
                     }
+                    // Drawing comes first: the pen and the eraser are always one click away.
+                    let pen = comments::CommentTool::Ink;
+                    if icons::button(ui, "pencil", 32.0, app.quick_tool == QuickTool::Comment(pen), "Pen (P)").clicked() {
+                        app.pick_up_pen();
+                    }
+                    let eraser = comments::CommentTool::Eraser;
+                    if icons::button(ui, "eraser", 32.0, app.quick_tool == QuickTool::Comment(eraser), "Eraser (E)").clicked() {
+                        app.execute(eraser.command());
+                    }
                     // Comment ▸, Highlight ▸, Draw ▸ (Acrobat's comment toolbar groups). Clicking a
                     // group selects its last-used tool; clicking it again opens the flyout.
                     for g in 0..comments::GROUPS.len() {
